@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>我的生活手帐：智能版</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { font-family: "Microsoft YaHei", sans-serif; background-color: #E8ECEC; color: #5c6b73; margin: 0; padding: 10px; padding-bottom: 60px; }
+        .container { max-width: 950px; margin: 0 auto; background: #FAF7F2; padding: 15px; border-radius: 12px; box-shadow: 0 8px 25px rgba(135, 171, 170, 0.15); }
+        h1, h2, h3 { color: #7ababa; text-align: center; }
+        h1 { border-bottom: 2px dashed #99D9D8; padding-bottom: 10px; font-size: 1.5rem; }
+        .stats-section { background: #fff; border-radius: 12px; padding: 15px; margin-bottom: 20px; border: 1px solid #EBE8E3; }
+        .chart-container { position: relative; height: 250px; width: 100%; max-width: 400px; margin: 0 auto; }
+        .data-lab { background: #fdfaf5; border: 1px dashed #e6ceac; padding: 10px; border-radius: 10px; margin-bottom: 20px; display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+        .btn-data { background: #e6ceac !important; color: #6d5b5b !important; font-size: 11px; padding: 5px 8px; }
+        .table-wrapper { width: 100%; overflow-x: auto; margin-bottom: 15px; border-radius: 8px; border: 1px solid #EBE8E3; }
+        table { width: 100%; border-collapse: collapse; background-color: #FDFCFA; min-width: 500px; }
+        th, td { border: 1px solid #EBE8E3; padding: 8px; text-align: left; font-size: 13px; }
+        th { background-color: #99D9D8; color: #ffffff; } 
+        .grid-container { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+        @media (max-width: 600px) { .grid-container { grid-template-columns: 1fr; } }
+        .card { border: 1px solid #EBE8E3; border-radius: 10px; background-color: #FDFCFA; box-shadow: 0 2px 8px rgba(0,0,0,0.02); overflow: hidden; margin-bottom: 15px; }
+        .card h3 { margin: 0; padding: 10px; display: flex; justify-content: space-between; align-items: center; font-size: 15px; background-color: #f7fafb; border-bottom: 1px solid #eef2f2; }
+        li { background: #FAF7F2; border: 1px solid #EBE8E3; margin: 10px; border-radius: 8px; font-size: 13px; overflow: hidden; }
+        .item-img-small { width: 35px; height: 35px; object-fit: cover; border-radius: 4px; vertical-align: middle; }
+        .item-img-large { width: 100%; height: 160px; object-fit: cover; border-bottom: 1px solid #eee; }
+        .exp-green { color: #27ae60; font-weight: bold; } .exp-orange { color: #e67e22; font-weight: bold; } .exp-red { color: #e74c3c; font-weight: bold; }
+        .input-area { background: #F1EFEA; padding: 12px; border-radius: 10px; margin-bottom: 20px; display: flex; gap: 5px; flex-wrap: wrap; }
+        input { padding: 8px; border: 1px solid #dce5e5; border-radius: 6px; outline: none; font-size: 13px; }
+        button { padding: 8px 12px; background: #99D9D8; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; transition: 0.2s; }
+        .modal { display: none; position: fixed; z-index: 2000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); }
+        .modal-content { background: #FAF7F2; margin: 15% auto; padding: 20px; border-radius: 12px; width: 85%; max-width: 350px; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>🛒 我的生活手帐</h1>
+    <div class="stats-section"><h3>💰 资产分布</h3><div class="chart-container"><canvas id="spendChart"></canvas></div></div>
+    <div class="data-lab">
+        <button class="btn-data" onclick="exportToCSV()">📊 导出 Excel</button>
+        <button class="btn-data" onclick="exportBackup()">💾 备份代码</button>
+        <button class="btn-data" onclick="importBackup()">📥 恢复数据</button>
+    </div>
+    <h2>📝 愿望单</h2>
+    <div class="input-area"><input type="text" id="itemName" placeholder="想买什么？" style="flex:1"><input type="number" id="expPrice" placeholder="预期¥" style="width:60px"><input type="number" id="actPrice" placeholder="实付¥" style="width:60px"><input type="date" id="expDate"><button onclick="addShoppingItem()">➕ 添加</button></div>
+    <div class="table-wrapper"><table><thead><tr><th>办</th><th>名称</th><th>预期</th><th>实付</th><th>效期</th><th>操作</th></tr></thead><tbody id="shoppingTableBody"></tbody><tfoot id="shoppingTableFoot"></tfoot></table></div>
+    <h2>📦 百宝箱</h2><div class="grid-container" id="inventoryGrid"></div>
+</div>
+<div id="itemModal" class="modal"><div class="modal-content"><h3 id="modalTitle">录入</h3><input type="file" id="modalImgFile" accept="image/*" style="display:none" onchange="previewImg(this)"><div onclick="document.getElementById('modalImgFile').click()" style="border:1px dashed #99D9D8; height:100px; text-align:center; display:flex; flex-direction:column; align-items:center; justify-content:center; margin-bottom:10px; border-radius:6px; background:#fff; cursor:pointer; overflow:hidden"><img id="modalPreview" style="display:none; width:100%; height:100%; object-fit:cover"><span id="promptTxt">📷 点击拍照</span></div><input type="text" id="modalName" placeholder="名称" style="width:100%; margin-bottom:10px; box-sizing:border-box"><div id="clothingFields" style="display:none; margin-bottom:10px"><input type="text" id="modalAttr" placeholder="颜色/尺码/季节" style="width:100%; box-sizing:border-box"></div><div id="normalFields" style="margin-bottom:10px; display:flex; gap:5%"><input type="text" id="modalCap" placeholder="容量" style="width:47%"><input type="date" id="modalExp" style="width:47%"></div><div style="display:flex; gap:5%; margin-bottom:15px"><input type="number" id="modalQty" value="1" style="width:47%"><input type="number" id="modalPrice" placeholder="价格¥" style="width:47%"></div><div style="text-align:right"><button style="background:#b0baba" onclick="closeModal()">取消</button><button onclick="confirmModal()">保存</button></div></div></div>
+<script>
+    let appData = { shopping: [], inventory: { "🧴 护肤品": [], "💄 美妆": [], "🧼 日用洗护": [], "💊 保健品": [], "👗 服饰": [] } };
+    const STORAGE_KEY = "MyLifeHandBook_Ultimate_V3";
+    let curEdit = { mode:'', cat:'', idx:-1, img:'' }; let myChart = null;
+    window.onload = function() { let saved = localStorage.getItem(STORAGE_KEY); if(saved) appData = JSON.parse(saved); renderAll(); };
+    function renderAll() { renderShopping(); renderInventory(); updateChart(); }
+    function previewImg(input) { const file = input.files[0]; if(!file) return; const reader = new FileReader(); reader.onload = function(e) { const img = new Image(); img.onload = function() { const canvas = document.createElement('canvas'); const maxWidth = 400; const scale = maxWidth / img.width; canvas.width = maxWidth; canvas.height = img.height * scale; const ctx = canvas.getContext('2d'); ctx.drawImage(img, 0, 0, canvas.width, canvas.height); const compressed = canvas.toDataURL('image/jpeg', 0.7); document.getElementById("modalPreview").src = compressed; document.getElementById("modalPreview").style.display="block"; document.getElementById("promptTxt").style.display="none"; curEdit.img = compressed; }; img.src = e.target.result; }; reader.readAsDataURL(file); }
+    function updateChart() { const ctx = document.getElementById('spendChart').getContext('2d'); const labels = Object.keys(appData.inventory); const dataValues = labels.map(cat => appData.inventory[cat].reduce((s, it) => s + (parseFloat(it.price)*(parseInt(it.qty)||1)||0), 0)); if (myChart) myChart.destroy(); myChart = new Chart(ctx, { type: 'pie', data: { labels: labels, datasets: [{ data: dataValues, backgroundColor: ['#99D9D8', '#F1CACB', '#E6CEAC', '#D9A5A5', '#B0BABA'], borderWidth: 2, borderColor: '#FAF7F2' }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 10 } } } } } }); }
+    function renderShopping() { let tbody = document.getElementById("shoppingTableBody"); let tfoot = document.getElementById("shoppingTableFoot"); tbody.innerHTML = ""; tfoot.innerHTML = ""; let sE=0, sA=0; appData.shopping.forEach((it, i) => { sE += parseFloat(it.expPrice)||0; sA += parseFloat(it.actPrice)||0; let tr = document.createElement("tr"); if(it.isChecked) tr.className="completed"; let img = it.img ? `<img src="${it.img}" class="item-img-small">` : ''; tr.innerHTML = `<td><input type="checkbox" ${it.isChecked?'checked':''} onchange="toggleCheck(${i})"></td><td>${img}${it.name}</td><td>${it.expPrice}</td><td>${it.actPrice}</td><td>${it.expDate}</td><td><button class="btn-small btn-delete" onclick="delShop(${i})">删</button></td>`; tbody.appendChild(tr); }); if(appData.shopping.length > 0) { let ft = document.createElement("tr"); ft.style.fontWeight="bold"; ft.innerHTML = `<td colspan="2" style="text-align:right">合计:</td><td>¥${sE.toFixed(1)}</td><td>¥${sA.toFixed(1)}</td><td colspan="2">省¥${(sE-sA).toFixed(1)}</td>`; tfoot.appendChild(ft); } }
+    function addShoppingItem() { let n = document.getElementById("itemName").value; if(!n) return; appData.shopping.push({name:n, expPrice:document.getElementById("expPrice").value||0, actPrice:document.getElementById("actPrice").value||0, expDate:document.getElementById("expDate").value||"-", isChecked:false, img:''}); saveData(); document.getElementById("itemName").value=""; }
+    function toggleCheck(i) { appData.shopping[i].isChecked = !appData.shopping[i].isChecked; if(appData.shopping[i].isChecked) { let c = prompt("入库？1.护肤 2.美妆 3.洗护 4.保健 5.服饰"); let cats = ["", "🧴 护肤品", "💄 美妆", "🧼 日用洗护", "💊 保健品", "👗 服饰"]; if(cats[c]) openModal('add', cats[c], -1, appData.shopping[i]); } saveData(); }
+    function renderInventory() { let grid = document.getElementById("inventoryGrid"); grid.innerHTML = ""; for(let cat in appData.inventory) { let card = document.createElement("div"); card.className = "card"; card.innerHTML = `<h3><span>${cat}</span><button class="btn-add-stock" onclick="openModal('add','${cat}')">➕</button></h3><ul id="list-${cat}"></ul>`; grid.appendChild(card); let ul = document.getElementById(`list-${cat}`); appData.inventory[cat].forEach((it, i) => { let li = document.createElement("li"); let cls = ""; if(it.exp && it.exp !== "-") { let d = (new Date(it.exp) - new Date()) / (1000*60*60*24*30); cls = d > 12 ? "exp-green" : (d > 6 ? "exp-orange" : "exp-red"); } let img = it.img ? `<img src="${it.img}" class="item-img-large">` : `<div style="height:100px; background:#f0f3f3; display:flex; align-items:center; justify-content:center; color:#b0baba; font-size:12px">未配图</div>`; li.innerHTML = `${img}<div style="padding:10px"><strong>${it.name}</strong><br><small>${cat==='👗 服饰'?it.attr:it.cap+' | 效期: <span class="'+cls+'">'+it.exp+'</span>'}</small><br><small>数量: ${it.qty} | ¥${it.price}</small><br><div style="text-align:right; margin-top:5px"><button class="btn-small btn-edit" onclick="openModal('edit','${cat}',${i})">改</button><button class="btn-small btn-delete" onclick="delInv('${cat}',${i})">删</button></div></div>`; ul.appendChild(li); }); } }
+    function openModal(mode, cat, idx, fromShop=null) { curEdit = { mode, cat, idx, img:'' }; document.getElementById("itemModal").style.display = "block"; document.getElementById("clothingFields").style.display = cat === "👗 服饰" ? "block" : "none"; document.getElementById("normalFields").style.display = cat === "👗 服饰" ? "none" : "block"; if(mode === 'edit') { let it = appData.inventory[cat][idx]; document.getElementById("modalName").value = it.name; document.getElementById("modalQty").value = it.qty; document.getElementById("modalPrice").value = it.price; if(cat==="👗 服饰") document.getElementById("modalAttr").value = it.attr; else { document.getElementById("modalCap").value = it.cap; document.getElementById("modalExp").value = it.exp; } if(it.img) { document.getElementById("modalPreview").src = it.img; document.getElementById("modalPreview").style.display="block"; document.getElementById("promptTxt").style.display="none"; curEdit.img = it.img; } } else { document.getElementById("modalName").value = fromShop?fromShop.name:""; document.getElementById("modalPrice").value = fromShop?fromShop.actPrice:""; document.getElementById("modalExp").value = (fromShop&&fromShop.expDate!=="-")?fromShop.expDate:""; document.getElementById("modalPreview").style.display="none"; document.getElementById("promptTxt").style.display="block"; curEdit.img = fromShop?fromShop.img:''; } }
+    function confirmModal() { let it = { name: document.getElementById("modalName").value, qty: document.getElementById("modalQty").value, price: document.getElementById("modalPrice").value, img: curEdit.img }; if(curEdit.cat === "👗 服饰") it.attr = document.getElementById("modalAttr").value; else { it.cap = document.getElementById("modalCap").value; it.exp = document.getElementById("modalExp").value; } if(curEdit.mode === 'edit') appData.inventory[curEdit.cat][curEdit.idx] = it; else appData.inventory[curEdit.cat].push(it); saveData(); closeModal(); }
+    function closeModal() { document.getElementById("itemModal").style.display = "none"; }
+    function saveData() { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(appData)); renderAll(); } catch (e) { alert("存储空间满啦！"); } }
+    function delShop(i) { if(confirm("删除？")) { appData.shopping.splice(i,1); saveData(); } }
+    function delInv(c, i) { if(confirm("删除？")) { appData.inventory[c].splice(i,1); saveData(); } }
+    function exportToCSV() { let csv = "\ufeff板块,名称,实付,备注\n"; appData.shopping.forEach(it => csv += `购物,${it.name},${it.actPrice},${it.expDate}\n`); let b = new Blob([csv], {type:'text/csv'}); let a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download="备份.csv"; a.click(); }
+    function exportBackup() { prompt("备份码:", JSON.stringify(appData)); }
+    function importBackup() { let s = prompt("粘贴备份码:"); if(s) { try{ appData = JSON.parse(s); saveData(); }catch(e){alert("导入失败");} } }
+</script>
+</body>
+</html>
